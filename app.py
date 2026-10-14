@@ -8,7 +8,10 @@ st.set_page_config(
     layout="wide",
 )
 
-html_path = Path(__file__).parent / "index.html"
-html = html_path.read_text(encoding="utf-8")
+html_path = (
+    Path(__file__).parent
+    / "pea_stakeholder_power_interest_map (9).html"
+)
 
+html = html_path.read_text(encoding="utf-8")
 components.html(html, height=1100, scrolling=True)
