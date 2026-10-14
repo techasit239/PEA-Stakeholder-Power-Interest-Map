@@ -9,17 +9,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ลดพื้นที่ว่างรอบหน้าเว็บ
 st.markdown(
     """
     <style>
     .block-container,
     .stMainBlockContainer {
         max-width: 100% !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-        padding-top: 3.5rem !important;
-        padding-bottom: 0 !important;
+        padding: 3.5rem 0.5rem 0 !important;
+    }
+
+    /* ปรับความสูงกรอบเว็บตามหน้าต่าง */
+    .stElementContainer:has(iframe) {
+        height: calc(100dvh - 4.5rem) !important;
+    }
+
+    iframe {
+        width: 100% !important;
+        height: calc(100dvh - 4.5rem) !important;
+        border: none;
     }
     </style>
     """,
@@ -32,4 +39,4 @@ html_path = (
 )
 
 html = html_path.read_text(encoding="utf-8")
-components.html(html, height=1100, scrolling=True)
+components.html(html, height=650, scrolling=True)
