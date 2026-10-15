@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PEA Stakeholder Power–Interest Map</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for Excel (.xlsx) Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Chakra Petch', 'Sarabun', sans-serif;
+    }
+    .draggable-point {
+      cursor: grab;
+      touch-action: none;
+    }
+    .draggable-point:hover {
+      filter: drop-shadow(0 0 7px rgba(37, 99, 235, 0.55));
+    }
+    .draggable-point:active, .is-dragging {
+      cursor: grabbing;
+      filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.8));
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Fit the desktop workspace to the embedded viewport. */
+    html, body { margin: 0; width: 100%; }
+    @media (min-width: 1024px) {
+      body { height: 100dvh; overflow: hidden; }
+      body > header { flex: 0 0 auto; }
+      body > main {
+        flex: 1 1 0%; min-height: 0; overflow: hidden;
+        align-items: stretch;
+      }
+      main > section, main > aside {
+        height: 100%; min-height: 0; max-height: none;
+      }
+      main > section > div:first-child {
+        flex: 0 0 auto; flex-wrap: wrap; gap: 6px;
+      }
+      main > section > div:nth-child(2) {
+        flex: 1 1 0%; min-height: 0;
+      }
+      #powerInterestMap { width: 100%; height: 100%; max-height: 100%; }
+      main > section > div:last-child { flex: 0 0 auto; }
+      main > aside > div:first-child,
+      main > aside > div:last-child { flex: 0 0 auto; }
+      main > aside > .custom-scroll {
+        min-height: 0; overflow: auto; overscroll-behavior: contain;
+      }
+    }
+
+    /* Larger table text and controls, scoped to the right panel. */
+    main > aside h2 { font-size: 18px; }
+    main > aside > div:first-child p { font-size: 13px; line-height: 1.5; }
+    main > aside table { font-size: 14px; line-height: 1.5; }
+    main > aside th { font-size: 13px; white-space: normal; }
+    #stakeholderTableBody td { font-size: 14px; line-height: 1.5; }
+    #stakeholderTableBody input { font-size: 14px; width: 66px; padding: 4px 3px; }
+    #stakeholderTableBody td[id^="status-col-"] span { font-size: 12px; }
+    #stakeholderTableBody button { font-size: 17px; }
+    @media (min-width: 1024px) {
+      main > section { padding: 8px; }
+      main > section > div:last-child { margin-top: 4px; padding-top: 4px; }
+    }
+
+    /* Keep all six columns within the panel; scroll vertically only. */
+    main > section, main > aside { min-width: 0; }
+    main > aside > .custom-scroll {
+      overflow-x: hidden !important; overflow-y: auto !important;
+      min-width: 0; min-height: 0;
+    }
+    main > aside table { table-layout: fixed; width: 100%; }
+    main > aside th, #stakeholderTableBody td {
+      padding-left: 4px; padding-right: 4px;
+      white-space: normal; overflow-wrap: anywhere;
+    }
+    main > aside th { font-size: 13px; line-height: 1.45; }
+    #stakeholderTableBody td { font-size: 14px; }
+    #stakeholderTableBody input {
+      box-sizing: border-box; width: 100%; max-width: 68px; min-width: 0;
+      font-size: 14px; padding: 5px 1px;
+      appearance: textfield; -moz-appearance: textfield;
+    }
+    #stakeholderTableBody input::-webkit-inner-spin-button,
+    #stakeholderTableBody input::-webkit-outer-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    #stakeholderTableBody td:first-child > div { gap: 3px; }
+    #stakeholderTableBody td[id^="status-col-"] span {
+      display: inline-block; max-width: 100%; padding: 2px 3px;
+    }
+    .chart-zoom-controls { display: flex; align-items: center; gap: 6px; }
+    .chart-zoom-controls button {
+      border: 1px solid #cbd5e1; border-radius: 7px;
+      background: #fff; color: #1e293b; padding: 4px 9px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .chart-zoom-controls button:hover { background: #eff6ff; }
+    .chart-zoom-controls button:disabled { opacity: .4; cursor: default; }
+    #zoomLevel { min-width: 42px; text-align: center; }
+    #powerInterestMap.is-zoomed { cursor: grab; }
+    #powerInterestMap.is-panning { cursor: grabbing; }
+
+    /* Explicit header lines prevent long Thai labels crossing columns. */
+    main > aside thead th {
+      box-sizing: border-box;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      line-height: 1.65 !important;
+      vertical-align: middle;
+      padding: 12px 4px !important;
+      font-size: 13px !important;
+      height: auto !important;
+    }
+    main > aside thead { background: #f8fafc; }
+    main > aside .axis-header-code {
+      display: inline-block; margin-top: 3px; font-weight: 700;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Top Header Bar -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 shadow-xs flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-3.5 h-3.5 rounded-full bg-blue-600 shadow-sm animate-pulse"></div>
+      <div>
+        <h1 class="text-lg md:text-xl font-bold tracking-tight text-slate-900">PEA Stakeholder Power–Interest Map</h1>
+        <p class="text-xs text-slate-500">แผนผังเมทริกซ์วิเคราะห์ผู้มีส่วนได้ส่วนเสีย กฟภ. (คลิกลากจุดบนกราฟ หรือแก้ไขตัวเลขในตารางแบบเรียลไทม์)</p>
+      </div>
+    </div>
+
+    <!-- Respondent & Action Buttons -->
+    <div class="flex items-center flex-wrap gap-2.5">
+      <!-- ผู้ตอบ -->
+      <div class="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 shadow-2xs">
+        <label for="respondentInput" class="text-xs font-semibold text-slate-600 mr-2 whitespace-nowrap">ผู้ตอบ:</label>
+        <input type="text" id="respondentInput" placeholder="พิมพ์ชื่อผู้ตอบ..." value="" 
+               class="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-32 md:w-44">
+      </div>
+
+      <button id="btnToggleGhost" class="px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1.5 border border-slate-300">
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        <span id="ghostToggleText">ซ่อนจุดเดิม</span>
+      </button>
+
+      <button id="btnResetAll" class="px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1.5 border border-slate-300">
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        รีเซ็ตทุกจุด
+      </button>
+
+      <!-- Excel Export -->
+      <button id="btnDownloadExcel" class="px-3.5 py-1.5 text-xs md:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm8.8-9.8l-1.8 3 1.9 3.2h-1.6l-1.1-2-1.1 2H9.5l1.9-3.2-1.8-3h1.6l1 1.9 1-1.9h1.6z"/></svg>
+        บันทึกเป็น Excel (.xlsx)
+      </button>
+
+      <button id="btnDownloadPNG" class="px-3.5 py-1.5 text-xs md:text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        ดาวน์โหลดภาพ PNG
+      </button>
+    </div>
+  </header>
+
+  <!-- Split Screen Layout: Left (Chart) & Right (Table) -->
+  <main class="flex-1 p-2 md:p-3 w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+    
+    <!-- LEFT COLUMN: Chart Viewport -->
+    <section class="lg:col-span-6 xl:col-span-7 bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <span class="text-xs font-semibold text-slate-600">คลิกที่สัญลักษณ์แล้วลากเพื่อปรับตำแหน่ง หรือพิมพ์ตัวเลขในตาราง</span>
+        </div>
+        <div id="liveStatusBadge" class="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-mono border border-slate-200">
+          ช่วงพิกัดสเกล: 1.00 – 5.00
+        </div>
+      </div>
+
+      <!-- Chart Display Area -->
+      <div class="w-full flex justify-center items-center py-1 overflow-hidden">
+        <svg id="powerInterestMap" 
+             viewBox="20 10 850 850" 
+             class="w-full h-auto select-none touch-none">
+          
+          <rect width="980" height="930" fill="#ffffff"/>
+
+          <!-- Title inside chart -->
+          <text x="475" y="38" text-anchor="middle" fill="#1b2a47" font-size="24" font-weight="700" font-family="'Inter', 'Chakra Petch', sans-serif">PEA Stakeholder Power–Interest Map</text>
+
+          <!-- Main Chart Frame & Grid -->
+          <g id="plotArea">
+            <g id="gridLines"></g>
+            <!-- Border box -->
+            <rect id="chartBorder" x="110" y="65" width="730" height="730" fill="none" stroke="#254366" stroke-width="2.4"/>
+            <!-- Ticks & Numbers -->
+            <g id="axisTicks"></g>
+            
+            <!-- Axis Labels (Thai) -->
+            <!-- Y-Axis Label (Vertical) -->
+            <text x="36" y="430" text-anchor="middle" fill="#1b2a47" font-size="18" font-weight="700" font-family="'Inter', 'Chakra Petch', sans-serif" transform="rotate(-90, 36, 430)">มิติอิทธิพลต่อทิศทางขององค์กร</text>
+            
+            <!-- X-Axis Label (Horizontal) -->
+            <text x="475" y="842" text-anchor="middle" fill="#1b2a47" font-size="18" font-weight="700" font-family="'Inter', 'Chakra Petch', sans-serif">การมีส่วนร่วมต่อองค์กร</text>
+          </g>
+
+          <!-- Ghost Markers Layer (Faded original positions) -->
+          <g id="ghostLayer"></g>
+
+          <!-- Active Stakeholder Points Layer -->
+          <g id="pointsLayer"></g>
+
+
+          <!-- Watermark: Respondent Name on SVG Canvas -->
+          <text id="svgRespondentWatermark" x="858" y="854" text-anchor="end" fill="#64748b" font-size="14" font-weight="600" font-family="'Inter', 'Chakra Petch', sans-serif"></text>
+        </svg>
+      </div>
+
+      <!-- Quick Tips Footer under Chart -->
+      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <div class="flex items-center gap-4">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-600"></span> ค่าใหม่</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-400 opacity-60"></span> ค่าเดิม</span>
+        </div>
+        <div class="chart-zoom-controls" role="group" aria-label="ซูมกราฟ">
+          <button id="zoomOut" type="button" aria-label="ซูมออก">−</button>
+          <span id="zoomLevel" aria-live="polite">100%</span>
+          <button id="zoomIn" type="button" aria-label="ซูมเข้า">+</button>
+          <button id="zoomReset" type="button">พอดีกรอบ</button>
+          <span class="text-slate-500">ซูมแล้วลากพื้นที่ว่างเพื่อเลื่อนกราฟ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: All 17 Coordinates Table -->
+    <aside class="lg:col-span-6 xl:col-span-5 bg-white p-3 md:p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[90vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold text-slate-900">ตารางพิกัดผู้มีส่วนได้ส่วนเสีย</h2>
+            <span class="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">17 จุด</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">พิมพ์แก้ไขตัวเลขพิกัด (1.00 – 5.00) จุดบนกราฟจะขยับตามทันที</p>
+        </div>
+      </div>
+
+      <!-- Scrollable Table Container displaying all 17 rows with names on the left -->
+      <div class="overflow-y-auto overflow-x-auto custom-scroll flex-1 border border-slate-200 rounded-xl">
+        <table class="w-full text-left text-xs">
+          <colgroup>
+            <col style="width:10%"><col style="width:36%">
+            <col style="width:16%"><col style="width:16%">
+            <col style="width:14%"><col style="width:8%">
+          </colgroup>
+          <thead class="bg-slate-50 text-slate-700 sticky top-0 z-10 border-b border-slate-200 font-semibold shadow-2xs">
+            <tr>
+              <th class="py-2.5 px-2.5 text-center whitespace-nowrap w-14">รหัส</th>
+              <th class="py-2.5 px-3 text-left whitespace-nowrap">กลุ่มผู้มีส่วนได้<br>ส่วนเสีย</th>
+              <th class="py-2.5 px-2 text-center whitespace-nowrap">การมีส่วนร่วม<br>ต่อองค์กร<br><span class="axis-header-code">(X)</span></th>
+              <th class="py-2.5 px-2 text-center whitespace-nowrap">มิติอิทธิพล<br>ต่อทิศทาง<br>ขององค์กร<br><span class="axis-header-code">(Y)</span></th>
+              <th class="py-2.5 px-2 text-center whitespace-nowrap">สถานะ</th>
+              <th class="py-2.5 px-2 text-center whitespace-nowrap">คืนค่า</th>
+            </tr>
+          </thead>
+          <tbody id="stakeholderTableBody" class="divide-y divide-slate-100 font-sans">
+            <!-- 17 Rows rendered by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Quick Table Footer -->
+      <div class="mt-3 pt-2 text-[11px] text-slate-400 flex justify-between items-center">
+        <span>* ทุกแถวสามารถแก้ไขได้อิสระ</span>
+        <button id="btnSetAsNewBaseline" class="text-blue-600 hover:text-blue-800 font-medium">บันทึกตำแหน่งนี้เป็นจุดเดิม</button>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-16 opacity-0 transition duration-300 pointer-events-none bg-slate-900 text-white text-xs md:text-sm px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
+    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    <span id="toastMsg">บันทึกการเปลี่ยนแปลงแล้ว</span>
+  </div>
+
+  <script>
+    // พารามิเตอร์พื้นที่กราฟ (SVG Coordinates)
+    const CHART = {
+      xMin: 110,
+      xMax: 840,
+      yMin: 65,
+      yMax: 795,
+      valMin: 1.00,
+      valMax: 5.00
+    };
+
+    function safeId(id) {
+      return String(id).replace(/\./g, '_');
+    }
+
+    // ข้อมูลชื่อกลุ่มผู้มีส่วนได้ส่วนเสีย
+    const STAKEHOLDER_NAMES = {
+      "1.1": "ภาครัฐและองค์กรอิสระ กำหนดหรือกำกับนโยบาย",
+      "1.2": "ภาครัฐและองค์กรอิสระ ผู้อนุมัติอนุญาต",
+      "1.3": "ภาครัฐและองค์กรอิสระ ผู้ให้ความร่วมมือและสนับสนุน",
+      "2.1": "ลูกค้าส่วนตลาดจำหน่ายไฟฟ้า",
+      "2.2": "ลูกค้าส่วนตลาดธุรกิจเกี่ยวเนื่อง",
+      "3.1": "ชุมชนและผู้นำชุมชน",
+      "3.2": "ประชาชนทั่วไป",
+      "4.1": "สื่อมวลชน",
+      "5.1": "ผู้ส่งมอบพลังงานไฟฟ้า",
+      "5.2": "ผู้ส่งมอบวัตถุอุปกรณ์",
+      "5.3": "ผู้ส่งมอบบริการ",
+      "5.4": "คู่ความร่วมมือในภารกิจสนับสนุน",
+      "6.1": "คณะกรรมการ กฟภ.",
+      "7.1": "ผู้บริหาร พนักงาน และลูกจ้าง",
+      "8.1": "บริษัทในเครือของ กฟภ.",
+      "9.1": "คู่เทียบในธุรกิจจำหน่ายไฟฟ้า",
+      "9.2": "คู่เทียบในธุรกิจเกี่ยวเนื่องและธุรกิจอื่น"
+    };
+
+    // แปลงค่าพิกัด (1.00 - 5.00) เป็นตำแหน่งพิกเซล SVG
+    function valToPxX(val) {
+      return CHART.xMin + ((val - CHART.valMin) / (CHART.valMax - CHART.valMin)) * (CHART.xMax - CHART.xMin);
+    }
+    function valToPxY(val) {
+      return CHART.yMax - ((val - CHART.valMin) / (CHART.valMax - CHART.valMin)) * (CHART.yMax - CHART.yMin);
+    }
+    function pxToValX(px) {
+      const v = CHART.valMin + ((px - CHART.xMin) / (CHART.xMax - CHART.xMin)) * (CHART.valMax - CHART.valMin);
+      return Math.max(CHART.valMin, Math.min(CHART.valMax, v));
+    }
+    function pxToValY(py) {
+      const v = CHART.valMin + ((CHART.yMax - py) / (CHART.yMax - CHART.yMin)) * (CHART.valMax - CHART.valMin);
+      return Math.max(CHART.valMin, Math.min(CHART.valMax, v));
+    }
+
+    // ข้อมูลเริ่มต้น 17 จุดตามต้นฉบับ
+    const INITIAL_STAKEHOLDERS = [
+      { id: "1.1", shape: "diamond", color: "#165882", x: 3.75, y: 4.75, labelOffset: { dx: 0, dy: -18 } },
+      { id: "1.2", shape: "square",  color: "#1d6a9e", x: 3.95, y: 4.15, labelOffset: { dx: 0, dy: -18 } },
+      { id: "1.3", shape: "triangle",color: "#1d6a9e", x: 3.00, y: 2.85, labelOffset: { dx: 0, dy: -18 } },
+      { id: "2.1", shape: "square",  color: "#b05720", x: 4.75, y: 3.75, labelOffset: { dx: 0, dy: -18 } },
+      { id: "2.2", shape: "square",  color: "#b05720", x: 3.45, y: 3.60, labelOffset: { dx: 0, dy: -18 } },
+      { id: "3.1", shape: "circle",  color: "#278b44", x: 3.45, y: 3.05, labelOffset: { dx: 0, dy: -18 } },
+      { id: "3.2", shape: "square",  color: "#278b44", x: 2.40, y: 2.60, labelOffset: { dx: 0, dy: -18 } },
+      { id: "4.1", shape: "dash",    color: "#2f5e36", x: 3.32, y: 3.50, labelOffset: { dx: 0, dy: -16 } },
+      { id: "5.1", shape: "dash",    color: "#b41d23", x: 3.82, y: 2.95, labelOffset: { dx: 0, dy: -16 } },
+      { id: "5.2", shape: "diamond", color: "#b41d23", x: 3.00, y: 2.50, labelOffset: { dx: 0, dy: -18 } },
+      { id: "5.3", shape: "square",  color: "#83181c", x: 3.50, y: 2.35, labelOffset: { dx: 0, dy: -18 } },
+      { id: "5.4", shape: "triangle",color: "#b41d23", x: 3.10, y: 1.88, labelOffset: { dx: 0, dy: -18 } },
+      { id: "6.1", shape: "square",  color: "#521c56", x: 4.36, y: 4.55, labelOffset: { dx: 0, dy: -18 } },
+      { id: "7.1", shape: "dash",    color: "#521c56", x: 4.90, y: 4.75, labelOffset: { dx: 0, dy: -16 } },
+      { id: "8.1", shape: "circle",  color: "#467232", x: 2.70, y: 1.80, labelOffset: { dx: 0, dy: -18 } },
+      { id: "9.1", shape: "square",  color: "#cf2327", x: 1.60, y: 1.90, labelOffset: { dx: 0, dy: -18 } },
+      { id: "9.2", shape: "dash",    color: "#cf2327", x: 1.90, y: 1.95, labelOffset: { dx: 0, dy: -16 } }
+    ];
+
+    let baselineStakeholders = JSON.parse(JSON.stringify(INITIAL_STAKEHOLDERS));
+    let stakeholders = JSON.parse(JSON.stringify(INITIAL_STAKEHOLDERS));
+    let showGhosts = true;
+    let selectedId = null;
+    let isDragging = false;
+    let dragTargetId = null;
+
+    const TICKS = [1.00, 1.80, 2.60, 3.40, 4.20, 5.00];
+
+    // วาดสเกล กริด และ Legend
+    function renderStaticChartElements() {
+      const gridContainer = document.getElementById("gridLines");
+      const ticksContainer = document.getElementById("axisTicks");
+      gridContainer.innerHTML = "";
+      ticksContainer.innerHTML = "";
+
+      TICKS.forEach((val) => {
+        const xPos = valToPxX(val);
+        const yPos = valToPxY(val);
+
+        // Grid lines
+        if (val > 1.00 && val < 5.00) {
+          const vLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          vLine.setAttribute("x1", xPos);
+          vLine.setAttribute("y1", CHART.yMin);
+          vLine.setAttribute("x2", xPos);
+          vLine.setAttribute("y2", CHART.yMax);
+          vLine.setAttribute("stroke", "#98b9d6");
+          vLine.setAttribute("stroke-width", "1.2");
+          gridContainer.appendChild(vLine);
+
+          const hLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          hLine.setAttribute("x1", CHART.xMin);
+          hLine.setAttribute("y1", yPos);
+          hLine.setAttribute("x2", CHART.xMax);
+          hLine.setAttribute("y2", yPos);
+          hLine.setAttribute("stroke", "#98b9d6");
+          hLine.setAttribute("stroke-width", "1.2");
+          gridContainer.appendChild(hLine);
+        }
+
+        // Ticks & Labels on X-Axis
+        const xTick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        xTick.setAttribute("x1", xPos);
+        xTick.setAttribute("y1", CHART.yMax);
+        xTick.setAttribute("x2", xPos);
+        xTick.setAttribute("y2", CHART.yMax + 6);
+        xTick.setAttribute("stroke", "#254366");
+        xTick.setAttribute("stroke-width", "1.8");
+        ticksContainer.appendChild(xTick);
+
+        const xText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        xText.setAttribute("x", xPos);
+        xText.setAttribute("y", CHART.yMax + 26);
+        xText.setAttribute("text-anchor", "middle");
+        xText.setAttribute("fill", "#38618c");
+        xText.setAttribute("font-size", "19.5");
+        xText.setAttribute("font-weight", "600");
+        xText.setAttribute("font-family", "'Inter', sans-serif");
+        xText.textContent = val.toFixed(2);
+        ticksContainer.appendChild(xText);
+
+        // Ticks & Labels on Y-Axis
+        const yTick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        yTick.setAttribute("x1", CHART.xMin - 6);
+        yTick.setAttribute("y1", yPos);
+        yTick.setAttribute("x2", CHART.xMin);
+        yTick.setAttribute("y2", yPos);
+        yTick.setAttribute("stroke", "#254366");
+        yTick.setAttribute("stroke-width", "1.8");
+        ticksContainer.appendChild(yTick);
+
+        const yText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        yText.setAttribute("x", CHART.xMin - 12);
+        yText.setAttribute("y", yPos + 5);
+        yText.setAttribute("text-anchor", "end");
+        yText.setAttribute("fill", "#38618c");
+        yText.setAttribute("font-size", "19.5");
+        yText.setAttribute("font-weight", "600");
+        yText.setAttribute("font-family", "'Inter', sans-serif");
+        yText.textContent = val.toFixed(2);
+        ticksContainer.appendChild(yText);
+      });
+
+    }
+
+    // วาดไอคอนสัญลักษณ์ตาม shape
+    function createShapeElement(shape, color, size = 18, opacity = 1) {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("opacity", opacity);
+
+      if (shape === "circle") {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("r", size / 2);
+        c.setAttribute("fill", color);
+        g.appendChild(c);
+      } else if (shape === "square") {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", -size / 2);
+        r.setAttribute("y", -size / 2);
+        r.setAttribute("width", size);
+        r.setAttribute("height", size);
+        r.setAttribute("fill", color);
+        g.appendChild(r);
+      } else if (shape === "diamond") {
+        const d = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        const s = size * 0.72;
+        d.setAttribute("points", `0,${-s * 1.3} ${s * 1.15},0 0,${s * 1.3} ${-s * 1.15},0`);
+        d.setAttribute("fill", color);
+        g.appendChild(d);
+      } else if (shape === "triangle") {
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        const s = size * 0.75;
+        p.setAttribute("points", `0,${-s * 1.25} ${s * 1.2},${s * 0.95} ${-s * 1.2},${s * 0.95}`);
+        p.setAttribute("fill", color);
+        g.appendChild(p);
+      } else if (shape === "dash") {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", -size * 0.75);
+        line.setAttribute("y1", 0);
+        line.setAttribute("x2", size * 0.75);
+        line.setAttribute("y2", 0);
+        line.setAttribute("stroke", color);
+        line.setAttribute("stroke-width", "4");
+        line.setAttribute("stroke-linecap", "round");
+        g.appendChild(line);
+      }
+      return g;
+    }
+
+    // วาด Ghost Markers (จุดเดิมจางๆ)
+    function renderGhostLayer() {
+      const ghostLayer = document.getElementById("ghostLayer");
+      ghostLayer.innerHTML = "";
+      if (!showGhosts) return;
+
+      stakeholders.forEach(st => {
+        const base = baselineStakeholders.find(b => b.id === st.id);
+        if (!base) return;
+
+        const isMoved = Math.hypot(st.x - base.x, st.y - base.y) > 0.02;
+        if (!isMoved) return;
+
+        const bx = valToPxX(base.x);
+        const by = valToPxY(base.y);
+
+        const ghostG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        ghostG.setAttribute("transform", `translate(${bx}, ${by})`);
+        ghostG.setAttribute("opacity", "0.35");
+
+        ghostG.appendChild(createShapeElement(base.shape, base.color, 18));
+
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        const dx = (base.labelOffset && base.labelOffset.dx) || 0;
+        const dy = (base.labelOffset && base.labelOffset.dy) || -22;
+        label.setAttribute("x", dx);
+        label.setAttribute("y", dy);
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("fill", base.color);
+        label.setAttribute("font-size", "23");
+        label.setAttribute("font-weight", "800");
+        label.setAttribute("font-family", "'Inter', sans-serif");
+        label.textContent = base.id;
+        ghostG.appendChild(label);
+
+        ghostLayer.appendChild(ghostG);
+      });
+    }
+
+    // วาดจุดหลักบนกราฟ
+    function renderPoints() {
+      const container = document.getElementById("pointsLayer");
+      container.innerHTML = "";
+
+      renderGhostLayer();
+
+      stakeholders.forEach((st) => {
+        const px = valToPxX(st.x);
+        const py = valToPxY(st.y);
+
+        const pointGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        pointGroup.setAttribute("id", `point-group-${safeId(st.id)}`);
+        pointGroup.setAttribute("class", "draggable-point");
+        pointGroup.setAttribute("transform", `translate(${px}, ${py})`);
+
+        // Tooltip
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        title.textContent = `${st.id}: ${STAKEHOLDER_NAMES[st.id] || ''}\nการมีส่วนร่วมต่อองค์กร: ${st.x.toFixed(2)}, มิติอิทธิพลต่อทิศทางขององค์กร: ${st.y.toFixed(2)}`;
+        pointGroup.appendChild(title);
+
+        // Hit-area
+        const hitArea = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hitArea.setAttribute("r", "28");
+        hitArea.setAttribute("fill", "transparent");
+        pointGroup.appendChild(hitArea);
+
+        // Symbol
+        pointGroup.appendChild(createShapeElement(st.shape, st.color, 25));
+
+        // Label
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("id", `label-${safeId(st.id)}`);
+        const dx = (st.labelOffset && st.labelOffset.dx) || 0;
+        const dy = (st.labelOffset && st.labelOffset.dy) || -22;
+        label.setAttribute("x", dx);
+        label.setAttribute("y", dy);
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("fill", st.color);
+        label.setAttribute("font-size", "26");
+        label.setAttribute("font-weight", "800");
+        label.setAttribute("font-family", "'Inter', sans-serif");
+        label.setAttribute("paint-order", "stroke fill");
+        label.setAttribute("stroke", "#ffffff");
+        label.setAttribute("stroke-width", "3.5");
+        label.setAttribute("stroke-linejoin", "round");
+        label.textContent = st.id;
+        pointGroup.appendChild(label);
+
+        // Highlight ring
+        if (st.id === selectedId) {
+          const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          ring.setAttribute("r", "29");
+          ring.setAttribute("fill", "none");
+          ring.setAttribute("stroke", "#2563eb");
+          ring.setAttribute("stroke-width", "2.5");
+          ring.setAttribute("stroke-dasharray", "4 4");
+          pointGroup.appendChild(ring);
+        }
+
+        // Pointer event for dragging
+        pointGroup.addEventListener("pointerdown", (e) => onPointerDown(e, st.id));
+
+        container.appendChild(pointGroup);
+      });
+    }
+
+    // Pointer Events Drag & Drop
+    const svg = document.getElementById("powerInterestMap");
+
+    // Zoom changes the viewing window only; stakeholder values stay unchanged.
+    const BASE_VIEW = { x: 20, y: 10, width: 850, height: 850 };
+    let chartZoom = 1;
+    let chartView = { ...BASE_VIEW };
+    let panStart = null;
+
+    function applyChartView() {
+      svg.setAttribute("viewBox", `${chartView.x} ${chartView.y} ${chartView.width} ${chartView.height}`);
+      svg.classList.toggle("is-zoomed", chartZoom > 1);
+      document.getElementById("zoomLevel").textContent = `${Math.round(chartZoom * 100)}%`;
+      document.getElementById("zoomOut").disabled = chartZoom <= 0.75;
+      document.getElementById("zoomIn").disabled = chartZoom >= 3;
+    }
+
+    function clampChartView() {
+      for (const [pos, size] of [["x", "width"], ["y", "height"]]) {
+        if (chartView[size] >= BASE_VIEW[size]) {
+          chartView[pos] = BASE_VIEW[pos] + (BASE_VIEW[size] - chartView[size]) / 2;
+        } else {
+          chartView[pos] = Math.max(BASE_VIEW[pos], Math.min(
+            BASE_VIEW[pos] + BASE_VIEW[size] - chartView[size], chartView[pos]));
+        }
+      }
+    }
+
+    function setChartZoom(next) {
+      const cx = chartView.x + chartView.width / 2;
+      const cy = chartView.y + chartView.height / 2;
+      chartZoom = Math.max(0.75, Math.min(3, next));
+      chartView.width = BASE_VIEW.width / chartZoom;
+      chartView.height = BASE_VIEW.height / chartZoom;
+      chartView.x = cx - chartView.width / 2;
+      chartView.y = cy - chartView.height / 2;
+      clampChartView();
+      applyChartView();
+    }
+
+    document.getElementById("zoomIn").addEventListener("click", () => setChartZoom(chartZoom + 0.25));
+    document.getElementById("zoomOut").addEventListener("click", () => setChartZoom(chartZoom - 0.25));
+    document.getElementById("zoomReset").addEventListener("click", () => {
+      chartZoom = 1; chartView = { ...BASE_VIEW }; applyChartView();
+    });
+    svg.addEventListener("pointerdown", e => {
+      if (chartZoom <= 1 || e.target.closest(".draggable-point") || e.button !== 0) return;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      panStart = { pointerId: e.pointerId, px: e.clientX, py: e.clientY,
+        x: chartView.x, y: chartView.y, scale: ctm.a };
+      svg.setPointerCapture(e.pointerId);
+      svg.classList.add("is-panning");
+      e.preventDefault();
+    });
+    svg.addEventListener("pointermove", e => {
+      if (!panStart || panStart.pointerId !== e.pointerId) return;
+      chartView.x = panStart.x - (e.clientX - panStart.px) / panStart.scale;
+      chartView.y = panStart.y - (e.clientY - panStart.py) / panStart.scale;
+      clampChartView(); applyChartView();
+    });
+    function stopChartPan(e) {
+      if (!panStart || panStart.pointerId !== e.pointerId) return;
+      panStart = null;
+      svg.classList.remove("is-panning");
+      if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+    }
+    svg.addEventListener("pointerup", stopChartPan);
+    svg.addEventListener("pointercancel", stopChartPan);
+    svg.addEventListener("lostpointercapture", stopChartPan);
+    applyChartView();
+
+    function getSVGPoint(e) {
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const screenCTM = svg.getScreenCTM();
+      return screenCTM ? pt.matrixTransform(screenCTM.inverse()) : { x: 0, y: 0 };
+    }
+
+    function onPointerDown(e, id) {
+      e.stopPropagation();
+      isDragging = true;
+      dragTargetId = id;
+      selectPoint(id);
+
+      const targetGroup = document.getElementById(`point-group-${safeId(id)}`);
+      if (targetGroup) targetGroup.classList.add("is-dragging");
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging || !dragTargetId) return;
+
+      const pt = getSVGPoint(e);
+      const newX = pxToValX(pt.x);
+      const newY = pxToValY(pt.y);
+
+      const st = stakeholders.find((s) => s.id === dragTargetId);
+      if (st) {
+        st.x = parseFloat(newX.toFixed(2));
+        st.y = parseFloat(newY.toFixed(2));
+
+        const targetGroup = document.getElementById(`point-group-${safeId(st.id)}`);
+        if (targetGroup) {
+          targetGroup.setAttribute("transform", `translate(${valToPxX(st.x)}, ${valToPxY(st.y)})`);
+        }
+
+        renderGhostLayer();
+        updateTableRowInput(st.id, st.x, st.y);
+        updateStatusBadge(st.id, st.x, st.y);
+      }
+    }
+
+    function onPointerUp() {
+      if (isDragging && dragTargetId) {
+        const targetGroup = document.getElementById(`point-group-${safeId(dragTargetId)}`);
+        if (targetGroup) targetGroup.classList.remove("is-dragging");
+      }
+      isDragging = false;
+      dragTargetId = null;
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      renderPoints();
+      updateTableStatusBadges();
+    }
+
+    // --- การเลือกจุดและการแสดงผลข้อมูล ---
+    function selectPoint(id) {
+      selectedId = id;
+      const st = stakeholders.find(s => s.id === id);
+      if (!st) return;
+
+      document.querySelectorAll("#stakeholderTableBody tr").forEach(tr => {
+        tr.classList.remove("bg-blue-50/90", "ring-1", "ring-blue-400");
+      });
+      const activeRow = document.getElementById(`row-${safeId(st.id)}`);
+      if (activeRow) {
+        activeRow.classList.add("bg-blue-50/90", "ring-1", "ring-blue-400");
+        // Highlight the matching row without moving the page or table.
+      }
+
+      updateStatusBadge(st.id, st.x, st.y);
+      renderPoints();
+    }
+
+    function clearSelection() {
+      if (selectedId === null) return;
+      selectedId = null;
+      document.querySelectorAll("#stakeholderTableBody tr").forEach(tr => {
+        tr.classList.remove("bg-blue-50/90", "ring-1", "ring-blue-400");
+      });
+      const badge = document.getElementById("liveStatusBadge");
+      badge.textContent = "ช่วงพิกัดสเกล: 1.00 – 5.00";
+      renderPoints();
+    }
+
+    function updateStatusBadge(id, x, y) {
+      const badge = document.getElementById("liveStatusBadge");
+      const name = STAKEHOLDER_NAMES[id] || '';
+      badge.innerHTML = `<span class="text-blue-600 font-bold">เลือก [${id}] ${name}</span>: การมีส่วนร่วมต่อองค์กร = <span class="font-bold text-slate-900">${x.toFixed(2)}</span>, มิติอิทธิพลต่อทิศทางขององค์กร = <span class="font-bold text-slate-900">${y.toFixed(2)}</span>`;
+    }
+
+    function updateTableRowInput(id, x, y) {
+      const row = document.getElementById(`row-${safeId(id)}`);
+      if (!row) return;
+      const inX = row.querySelector('.input-coord-x');
+      const inY = row.querySelector('.input-coord-y');
+      if (inX && document.activeElement !== inX) inX.value = x.toFixed(2);
+      if (inY && document.activeElement !== inY) inY.value = y.toFixed(2);
+    }
+
+    // สร้างตาราง 17 แถว
+    function renderTable() {
+      const tbody = document.getElementById("stakeholderTableBody");
+      tbody.innerHTML = "";
+
+      stakeholders.forEach(st => {
+        const base = baselineStakeholders.find(b => b.id === st.id);
+        const isMoved = base && (Math.hypot(st.x - base.x, st.y - base.y) > 0.02);
+
+        const tr = document.createElement("tr");
+        tr.id = `row-${safeId(st.id)}`;
+        tr.className = `hover:bg-slate-50 transition cursor-pointer ${st.id === selectedId ? 'bg-blue-50/90 ring-1 ring-blue-400' : ''}`;
+        tr.onclick = (e) => {
+          if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+            selectPoint(st.id);
+          }
+        };
+
+        tr.innerHTML = `
+          <td class="py-2 px-2.5 text-center whitespace-nowrap">
+            <div class="flex items-center justify-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full inline-block shrink-0" style="background-color: ${st.color}"></span>
+              <span class="font-bold text-slate-800">${st.id}</span>
+            </div>
+          </td>
+          <td class="py-2 px-3 text-slate-700 font-medium text-xs leading-snug">
+            ${STAKEHOLDER_NAMES[st.id] || ''}
+          </td>
+          <td class="py-2 px-2 text-center whitespace-nowrap">
+            <input type="number" step="0.05" min="1.00" max="5.00" value="${st.x.toFixed(2)}"
+                   class="input-coord-x w-16 px-1.5 py-1 text-center bg-white border border-slate-300 rounded font-mono text-xs focus:border-blue-500 focus:outline-none">
+          </td>
+          <td class="py-2 px-2 text-center whitespace-nowrap">
+            <input type="number" step="0.05" min="1.00" max="5.00" value="${st.y.toFixed(2)}"
+                   class="input-coord-y w-16 px-1.5 py-1 text-center bg-white border border-slate-300 rounded font-mono text-xs focus:border-blue-500 focus:outline-none">
+          </td>
+          <td class="py-2 px-2 text-center whitespace-nowrap" id="status-col-${safeId(st.id)}">
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-medium ${isMoved ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}">
+              ${isMoved ? 'ย้ายแล้ว' : 'จุดเดิม'}
+            </span>
+          </td>
+          <td class="py-2 px-2 text-center whitespace-nowrap">
+            <button onclick="resetSinglePoint('${st.id}')" title="คืนค่าเฉพาะจุดนี้" class="text-xs text-slate-400 hover:text-blue-600 transition px-1 py-0.5">
+              ↺
+            </button>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+
+        const inX = tr.querySelector('.input-coord-x');
+        const inY = tr.querySelector('.input-coord-y');
+
+        const onInputChange = () => {
+          let nx = parseFloat(inX.value);
+          let ny = parseFloat(inY.value);
+          if (isNaN(nx)) nx = 1.0;
+          if (isNaN(ny)) ny = 1.0;
+          st.x = Math.max(1.0, Math.min(5.0, nx));
+          st.y = Math.max(1.0, Math.min(5.0, ny));
+          inX.value = st.x.toFixed(2);
+          inY.value = st.y.toFixed(2);
+          renderPoints();
+          selectPoint(st.id);
+          updateTableStatusBadges();
+        };
+
+        inX.addEventListener("change", onInputChange);
+        inY.addEventListener("change", onInputChange);
+      });
+    }
+
+    function updateTableStatusBadges() {
+      stakeholders.forEach(st => {
+        const base = baselineStakeholders.find(b => b.id === st.id);
+        const col = document.getElementById(`status-col-${safeId(st.id)}`);
+        if (!col || !base) return;
+        const isMoved = Math.hypot(st.x - base.x, st.y - base.y) > 0.02;
+        col.innerHTML = `
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-medium ${isMoved ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}">
+            ${isMoved ? 'ย้ายแล้ว' : 'จุดเดิม'}
+          </span>
+        `;
+      });
+    }
+
+    window.resetSinglePoint = function(id) {
+      const base = baselineStakeholders.find(b => b.id === id);
+      const st = stakeholders.find(s => s.id === id);
+      if (base && st) {
+        st.x = base.x;
+        st.y = base.y;
+        renderPoints();
+        updateTableRowInput(st.id, st.x, st.y);
+        updateTableStatusBadges();
+        selectPoint(id);
+        showToast(`คืนค่าตำแหน่งเริ่มต้นของจุด [${id}] เรียบร้อย`);
+      }
+    };
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      const toastMsg = document.getElementById("toastMsg");
+      toastMsg.textContent = msg;
+      toast.classList.remove("translate-y-16", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-16", "opacity-0");
+      }, 2400);
+    }
+
+    // ลายน้ำชื่อผู้ตอบ
+    const respondentInput = document.getElementById("respondentInput");
+    const svgWatermark = document.getElementById("svgRespondentWatermark");
+
+    respondentInput.addEventListener("input", (e) => {
+      const name = e.target.value.trim();
+      svgWatermark.textContent = name ? `ผู้ตอบ: ${name}` : "";
+    });
+
+    // Event Listeners สำหรับปุ่มควบคุม
+    document.getElementById("btnToggleGhost").addEventListener("click", () => {
+      showGhosts = !showGhosts;
+      document.getElementById("ghostToggleText").textContent = showGhosts ? "ซ่อนจุดเดิม" : "แสดงจุดเดิม";
+      renderGhostLayer();
+      showToast(showGhosts ? "เปิดแสดงจุดเดิมแล้ว" : "ซ่อนจุดเดิมแล้ว");
+    });
+
+    document.getElementById("btnResetAll").addEventListener("click", () => {
+      stakeholders = JSON.parse(JSON.stringify(INITIAL_STAKEHOLDERS));
+      baselineStakeholders = JSON.parse(JSON.stringify(INITIAL_STAKEHOLDERS));
+      renderPoints();
+      renderTable();
+      selectPoint("1.1");
+      showToast("รีเซ็ตทุกจุดกลับสู่ค่าเริ่มต้นเรียบร้อยแล้ว");
+    });
+
+    document.getElementById("btnSetAsNewBaseline").addEventListener("click", () => {
+      baselineStakeholders = JSON.parse(JSON.stringify(stakeholders));
+      renderGhostLayer();
+      updateTableStatusBadges();
+      showToast("บันทึกตำแหน่งปัจจุบันทั้งหมดเป็นจุดเริ่มต้นใหม่แล้ว");
+    });
+
+    // ส่งออกไฟล์ Excel (.xlsx)
+    document.getElementById("btnDownloadExcel").addEventListener("click", () => {
+      const respondentName = respondentInput.value.trim() || "ไม่ระบุชื่อ";
+      const now = new Date();
+      const timestampStr = now.toLocaleDateString("th-TH") + " " + now.toLocaleTimeString("th-TH");
+
+      const rows = [
+        ["PEA Stakeholder Power–Interest Map"],
+        ["ผู้ตอบ", respondentName],
+        ["วันเวลาที่บันทึก", timestampStr],
+        [],
+        ["รหัส", "กลุ่มผู้มีส่วนได้ส่วนเสีย", "การมีส่วนร่วมต่อองค์กร (X)", "มิติอิทธิพลต่อทิศทางขององค์กร (Y)", "พิกัด X เริ่มต้น", "พิกัด Y เริ่มต้น", "สถานะ"]
+      ];
+
+      stakeholders.forEach(st => {
+        const base = baselineStakeholders.find(b => b.id === st.id) || st;
+        const isMoved = Math.hypot(st.x - base.x, st.y - base.y) > 0.02;
+        rows.push([
+          st.id,
+          STAKEHOLDER_NAMES[st.id] || "",
+          st.x,
+          st.y,
+          base.x,
+          base.y,
+          isMoved ? "ย้ายแล้ว" : "จุดเดิม"
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 8 },
+        { wch: 48 },
+        { wch: 36 },
+        { wch: 36 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 12 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Stakeholder_Coordinates");
+
+      const filename = `PEA_Stakeholder_Map_ผู้ตอบ_${respondentName.replace(/[\\/:*?"<>|]/g, "_")}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      showToast("บันทึกไฟล์ Excel สำเร็จ");
+    });
+
+    // บันทึกภาพ PNG คมชัดสูง (HD)
+    document.getElementById("btnDownloadPNG").addEventListener("click", () => {
+      const respondentName = respondentInput.value.trim() || "ไม่ระบุชื่อ";
+      const svgElement = document.getElementById("powerInterestMap");
+      const serializer = new XMLSerializer();
+      const exportSvg = svgElement.cloneNode(true);
+      exportSvg.setAttribute("viewBox", "20 10 850 850");
+      exportSvg.setAttribute("width", "850");
+      exportSvg.setAttribute("height", "850");
+      exportSvg.removeAttribute("class");
+      let source = serializer.serializeToString(exportSvg);
+
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1700;
+        canvas.height = 1700;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const pngUrl = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `PEA_Stakeholder_Map_ผู้ตอบ_${respondentName.replace(/[\\/:*?"<>|]/g, "_")}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(blobURL);
+        showToast("ดาวน์โหลดภาพ PNG คุณภาพสูงสำเร็จ");
+      };
+      image.src = blobURL;
+    });
+
+    // เริ่มต้นทำงานทันทีที่โหลดหน้าเสร็จ
+    window.addEventListener("DOMContentLoaded", () => {
+      renderStaticChartElements();
+      renderPoints();
+      renderTable();
+
+      // เมื่อคลิกพื้นที่ว่างบนผัง SVG หรือภายนอกจุด ให้ยกเลิกการเลือกและซ่อนวงกลมเส้นประ
+      const svg = document.getElementById("powerInterestMap");
+      svg.addEventListener("pointerdown", (e) => {
+        // หากคลิกที่ตัวจุดหรือ legend การทำงานของจุดจะเรียก stopPropagation อยู่แล้ว
+        // หากหลุดมาถึง SVG แสดงว่าคลิกที่พื้นหลังหรือพื้นที่ว่าง
+        if (!e.target.closest(".draggable-point")) {
+          clearSelection();
+        }
+      });
+
+      // ดักคลิกนอกตารางและนอกกราฟเพื่อยกเลิกการเลือก
+      document.addEventListener("pointerdown", (e) => {
+        if (!e.target.closest("#powerInterestMap") && 
+            !e.target.closest("#stakeholderTableBody") &&
+            !e.target.closest("button") &&
+            !e.target.closest("input")) {
+          clearSelection();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
